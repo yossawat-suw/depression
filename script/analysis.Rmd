@@ -128,7 +128,8 @@ lm_model <- lm(phq_9_score ~ ., data = data_filter[,!colnames(data_filter) %in% 
 summary(lm_model)
 ```
 ```{r warning = FALSE, message = FALSE}
-lm_model %>% tbl_regression()
+lm_tbl <- lm_model %>% tbl_regression()
+lm_tbl
 ```
 
 
@@ -169,6 +170,17 @@ summary(binary_logistic_model)
 ```
 
 ```{r warning = FALSE, message = FALSE}
-binary_logistic_model %>% tbl_regression(exponentiate = TRUE)
+binary_logistic_tbl <- binary_logistic_model %>% tbl_regression(exponentiate = TRUE)
+binary_logistic_tbl
+```
+
+#Export data
+```{r}
+table1 %>% as_hux_xlsx("../output/table_1.xlsx")
+table2 %>% as_hux_xlsx("../output/table_2.xlsx")
+
+lm_tbl %>% as_hux_xlsx("../output/multivariated_linear.xlsx")
+ordered_logistic_tbl %>% as_hux_xlsx("../output/phd9_cat_ordered_logistic.xlsx")
+binary_logistic_tbl %>% as_hux_xlsx("../output/phq9_9th_logistic.xlsx")
 ```
 
