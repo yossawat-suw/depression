@@ -1,0 +1,174 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r warning = FALSE, message = FALSE}
+#load package
+library(dplyr)
+library(tidyr)
+library(gtsummary)
+library(labelled)
+library(MASS)
+library(stats)
+library(ggplot2)
+```
+
+```{r}
+#Load preprocessed data
+data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+```
+
+```{r}
+## define custom test
+fisher.test.simulate.p.values <- function(data, variable, by, ...) {
+  result <- list()
+  test_results <- stats::fisher.test(data[[variable]], data[[by]], simulate.p.value = TRUE)
+  result$p <- test_results$p.value
+  result$test <- test_results$method
+  result
+}
+```
+
+
+```{r}
+##table 1 and table 2
+
+#temporary convert Phq91-9 to factor
+data_filter_phq9asfactor <- data_filter
+data_filter_phq9asfactor$phq9_1 <- factor(data_filter_phq9asfactor$phq9_1, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_2 <- factor(data_filter_phq9asfactor$phq9_2, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_3 <- factor(data_filter_phq9asfactor$phq9_3, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_4 <- factor(data_filter_phq9asfactor$phq9_4, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_5 <- factor(data_filter_phq9asfactor$phq9_5, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_6 <- factor(data_filter_phq9asfactor$phq9_6, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_7 <- factor(data_filter_phq9asfactor$phq9_7, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_8 <- factor(data_filter_phq9asfactor$phq9_8, levels = c("0","1","2","3"))
+data_filter_phq9asfactor$phq9_9 <- factor(data_filter_phq9asfactor$phq9_9, levels = c("0","1","2","3"))
+```
+
+```{r}
+table1 <- 
+  data_filter_phq9asfactor %>%
+  tbl_summary()
+
+table2 <- 
+  data_filter_phq9asfactor %>%
+  tbl_summary(by = phq_9_cat) %>%
+  add_p(
+  test = list(all_categorical() ~ "fisher.test.simulate.p.values")  # this applies the custom test to all categorical variables
+)  %>%
+  add_overall()
+```
+
+
+```{r}
+table1
+table2
+```
+
+
+```{r}
+data_filter %>% ggplot(aes(x = phq_9_cat)) + geom_bar()
+
+data_filter %>% group_by(phq_9_cat) %>%
+  summarise(frequency = n())
+```
+
+```{r}
+data_filter %>% ggplot(aes(x = phq_9_score)) + geom_histogram()
+
+data_filter %>% group_by(phq_9_score) %>%
+  summarise(frequency = n())
+```
+```{r}
+data_filter %>% ggplot(aes(x = phq9_9)) + geom_bar()
+
+data_filter %>% group_by(phq9_9) %>%
+  summarise(frequency = n())
+```
+```{r}
+data_filter %>% ggplot(aes(x = phq9_9, y = phq_9_score)) + geom_count()
+```
+```{r}
+#test whether phq9_9 is related to ph9_9_score using t-test
+
+t.test(data_filter[data_filter$phq9_9 == 1,]$phq_9_score,data_filter[data_filter$phq9_9 == 0,]$phq_9_score)
+```
+```{r}
+## Explore each question of PHQ9
+
+for (i in 1:9) {
+  print(paste0("PHQ9_",i,": ",
+               attributes((data_filter[,32:40])[,i,drop = TRUE])$label))
+}
+
+```
+```{r}
+#convert wide to long to be used in ggplot
+data_long <- gather(data_filter, phq, score, phq9_1:phq9_9, factor_key=TRUE)
+```
+
+
+```{r}
+data_long %>% ggplot(aes(x=score)) + geom_histogram() + facet_wrap(~phq)
+```
+
+##Multiple linear regression
+
+```{r warning = FALSE, message = FALSE}
+# Multiple linear regression
+column_to_excludes <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_cat")
+
+
+lm_model <- lm(phq_9_score ~ ., data = data_filter[,!colnames(data_filter) %in% column_to_excludes])
+
+# Print the summary of the model
+summary(lm_model)
+```
+```{r warning = FALSE, message = FALSE}
+lm_model %>% tbl_regression()
+```
+
+
+
+# Ordered logistic regression
+```{r warning = FALSE, message = FALSE}
+# Ordered logistic regression
+column_to_excludes <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_score")
+
+data_filter[,!colnames(data_filter) %in% column_to_excludes]
+
+
+ordered_logistic_model <- polr(phq_9_cat ~ ., data = data_filter[,!colnames(data_filter) %in% column_to_excludes],Hess = TRUE)
+
+# Print the summary of the model
+summary(ordered_logistic_model)
+```
+```{r warning = FALSE, message = FALSE}
+ordered_logistic_tbl <- ordered_logistic_model %>% tbl_regression(exponentiate = TRUE)
+ordered_logistic_tbl
+```
+
+
+
+
+#Binary logistic regression
+```{r warning = FALSE, message = FALSE}
+#Binary logistic regression only for the phq9-9 question 
+column_to_excludes <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq_9_score","phq_9_cat")
+
+column_to_excludes <- c("WeightofPatient","HeightofPatient","phq_9_score","phq_9_cat")
+
+binary_logistic_model <- glm(phq9_9 ~ ., family = binomial(), data = data_filter[,!colnames(data_filter) %in% column_to_excludes])
+
+summary(binary_logistic_model)
+```
+
+```{r warning = FALSE, message = FALSE}
+binary_logistic_model %>% tbl_regression(exponentiate = TRUE)
+```
+

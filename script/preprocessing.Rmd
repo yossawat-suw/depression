@@ -1,0 +1,309 @@
+```{r}
+#load package
+library(haven)
+library(dplyr)
+library(xlsx)
+library(writexl)
+library(labelled)
+library(data.table)
+library(stringr)
+```
+
+```{r}
+data <- read_sav("../data/Vaccinehesitancydata26.7.2021_2.sav")
+```
+
+```{r}
+head(data)
+```
+```{r}
+table(data[,99,drop =TRUE])
+data[data[,99,drop =TRUE] == "ไม่ใช่ (ผู้ป่วยตอบคำถามเอง)",99:103]
+```
+
+
+
+```{r}
+#filter in factor of interest
+
+colnames(data)
+#sort(colnames(data))
+```
+
+
+```{r}
+#Age, Gender, Ethnicity, Marital status, Education, Current residence, Employment, Monthly income, Income loss due to COVID-19, BMI, Ambulation, Hearing problem, Vision problem, History of smoking, History of drinking alcohol,Underlying disease (Diabetes, Chronic kidney disease, Respiratory disease) Subjective cognitive complaint, Hospitalization in the past year, Overall health perception
+
+colnames(data)[100:108]
+selected_var <- c("Ageofpatient","Sex","Ethnic","Maritalstatus","Education","Address","Employment","@1.14รายได้ต่อเดือนบาท","IncomeLossfromCOVID","WeightofPatient","HeightofPatient","PatientAmbulation","PatientHearing","PatientVisual","Smoking","AlcoholDrinking","DementiaDx","SelfPerceptCognition","NumberofHospitalization","SelfPerceptHealth",colnames(data)[81:90],colnames(data)[100:108]) ## add DementiaDx; move ud to the end
+
+selected_var
+```
+
+```{r}
+nrow(data)
+```
+
+```{r}
+data_filter <- data[data[,99,drop =TRUE] == "ไม่ใช่ (ผู้ป่วยตอบคำถามเอง)",selected_var]
+data_filter
+```
+```{r}
+lapply(as.vector(data_filter[,31:39]),unique)
+```
+
+
+
+```{r}
+#filter out NA 
+nrow(data_filter)
+data_filter <- na.omit(data_filter)
+nrow(data_filter)
+
+#remove weight / height with zero number
+data_filter <- data_filter[!(data_filter$WeightofPatient == 0 | data_filter$HeightofPatient == 0),]
+```
+
+```{r}
+replace_values <- function(x) {
+  case_when(
+    x == "ไม่มีเลย" ~ "0",
+    x == "มีบางวัน ไม่บ่อย" ~ "1",
+    x == "มีบางวันไม่บ่อย" ~ "1",
+    x == "มีค่อนข้างบ่อย" ~ "2",
+    x == "มีเกือบทุกวัน" ~ "3",
+    TRUE ~ x  # Keep the original value if no match
+  )
+}
+
+# Backup the attributes
+attributes_backup <- lapply(data_filter[ , 31:39], attributes)
+
+# Replace multiple values in columns 31 to 39
+data_filter <- data_filter %>%
+  mutate(across(31:39, replace_values)) %>%
+  mutate(across(31:39, as.integer))
+
+# Restore the attributes
+for(i in 31:39) {
+  attributes(data_filter[[i]]) <- attributes_backup[[i - 30]]
+}
+
+# Check the attributes to ensure they are preserved
+#lapply(data_filter[ , 31:39], attributes)
+
+#add phq-9
+data_filter <- data_filter %>% 
+  mutate(phq_9_score = as.integer(rowSums(across(31:39))))
+```
+
+
+
+
+```{r}
+#Create new data 
+data_filter$BMI <- (data_filter$WeightofPatient) / (((data_filter$HeightofPatient)/100)^2)
+```
+
+
+```{r}
+unique_answer <- lapply(as.vector(data_filter),unique)
+
+weird <- c("@1.14รายได้ต่อเดือนบาท",colnames(data_filter)[21:30])
+```
+```{r}
+unique_answer <- lapply(as.vector(data_filter[,weird]),function(x){
+  x <- unique(x)
+  x <- sort(x)
+  return(x)
+})
+unique_answer_df_list <- lapply(unique_answer,function(x){
+  x <- as.data.frame(x)
+  colnames(x) <- "value"
+  x$group <- NA
+  return(x)
+})
+```
+```{r}
+#write_xlsx(unique_answer_df_list,path  = "../output/variable_to_be_checked.xlsx")
+```
+
+```{r}
+library("rio")
+```
+```{r}
+data_filter_list <- rio::import_list("../output/variable_checked_edited.xlsx")
+```
+
+```{r}
+for (i in 1:length(data_filter_list)) {
+  val_name <- names(data_filter_list)[i]
+  data_filter$value <- data_filter[,val_name,drop = TRUE]
+  
+  data_filter <- data_filter[,!(colnames(data_filter) %in% val_name)]
+  
+  decode_df <- data_filter_list[[val_name]]
+  decode_df <- decode_df[,1:2]
+  
+  data_filter <- left_join(data_filter,decode_df,by = "value")
+  data_filter$group <- factor(data_filter$group,levels = c("None",setdiff(unique(data_filter$group),"None")))
+  
+  setnames(data_filter,"group",val_name)
+}
+data_filter$value <- NULL
+```
+
+
+```{r}
+result_all <- c()
+pattern <- "\\[(?:\\d+\\.\\d+\\.\\d+)\\s+([^\\]]+)\\]"
+q <- 1
+for (i in 20:28) {
+  
+  vec <- attributes(data_filter[,i,drop = TRUE])$label
+  result <- str_match(vec, pattern)[,2]
+  names(result) <- paste("phq9",q,sep = "_")
+  result_all <- c(result_all,result)
+  
+  q <- q+1
+}
+
+result_all
+```
+```{r}
+#adjust colname
+setnames(data_filter,c("ในช่วง2สัปดาห์ที่ผ่านม",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_A",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_B",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_C",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_D",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_E",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_F",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_G",
+                       "ในช่วง2สัปดาห์ที่ผ่าน_H",
+                       "@1.14รายได้ต่อเดือนบาท",
+                       "@2.18.1ระบบประสาท",
+                       "@2.18.2ระบบหัวใจและหลอดเลื",
+                       "@2.18.3ระบบทางเดินหายใจ",
+                       "@2.18.4ระบบทางเดินอาหาร",
+                       "@2.18.5โรคไต",
+                       "@2.18.6ระบบต่อมไร้ท่อ",
+                       "@2.18.7โรคกระดูกและข้อ" ,
+                       "@2.18.8โรคมะเร็งกรุณาระบุช",
+                       "@2.18.9โรคภูมิแพ้" ,
+                       "@2.18.10เคยได้รับการวินิจฉ"),
+c("phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9",
+  "income","neuro","cvs","respi","gi","renal","endo","msk","cancer","allergy","psychi"))
+
+
+
+```
+
+```{r}
+data_filter$Sex <- to_factor(data_filter$Sex)
+data_filter$Ethnic <- to_factor(data_filter$Ethnic)
+data_filter$Maritalstatus <- to_factor(data_filter$Maritalstatus)
+data_filter$Education <- to_factor(data_filter$Education)
+data_filter$Address <- to_factor(data_filter$Address)
+data_filter$Employment <- to_factor(data_filter$Employment)
+
+data_filter$IncomeLossfromCOVID <- to_factor(data_filter$IncomeLossfromCOVID)
+data_filter$IncomeLossfromCOVID <- factor(data_filter$IncomeLossfromCOVID,levels = c("Same","Less than 50%","Over 50% loss","No income"))
+
+data_filter$PatientAmbulation <- to_factor(data_filter$PatientAmbulation)
+data_filter$PatientHearing <- to_factor(data_filter$PatientHearing) 
+data_filter$PatientVisual <- to_factor(data_filter$PatientVisual)
+data_filter$PatientAmbulation <- factor(data_filter$PatientAmbulation,levels = c("Normal","Gait aid","Bedbound"))
+data_filter$PatientHearing <- factor(data_filter$PatientHearing, levels = c("Normal","Hearing aid","Hearing impairment")) 
+data_filter$PatientVisual <- factor(data_filter$PatientVisual, levels = c("Normal","Glasses","Vision loss"))
+
+data_filter$Smoking <- to_factor(data_filter$Smoking)
+data_filter$AlcoholDrinking <- to_factor(data_filter$AlcoholDrinking)
+data_filter$DementiaDx <- to_factor(data_filter$DementiaDx)
+data_filter$SelfPerceptCognition <- to_factor(data_filter$SelfPerceptCognition)
+data_filter$SelfPerceptHealth <- to_factor(data_filter$SelfPerceptHealth)
+
+data_filter$NumberofHospitalization <- as.numeric(data_filter$NumberofHospitalization)
+
+data_filter$income <- factor(data_filter$income,levels = c("10,000 or less",
+                                                           "10,001 - 20,000",
+                                                           "20,001 - 30,000",
+                                                           "30,001 or more",
+                                                           "unknown"))
+```
+
+
+
+
+
+```{r}
+
+# orderize the phq_9
+# PHQ9 score : Depression
+#     < 5 ~ "normal"
+#     >= 5 &  =< 8 ~ "mild depression",
+#     >= 9 & <= 14 ~ "moderate depression",
+#     >= 15 & <= 19 ~ "moderately severe depression",
+#     > 19 ~ "severe depression"
+
+data_filter$phq_9_cat <- factor(cut(data_filter$phq_9_score,
+                             breaks = c(-Inf, 4, 8, 14, 19, Inf),
+                             labels = c("normal", "mild depression", "moderate depression", "moderately severe depression", "severe depression"),
+                             right = TRUE))
+
+```
+
+```{r}
+data_filter
+str(data_filter)
+```
+
+```{r}
+attributes(data_filter$Ageofpatient)$label <- "Age"
+attributes(data_filter$Sex)$label <- "Sex"
+attributes(data_filter$Ethnic)$label <- "Ethnic"
+attributes(data_filter$Maritalstatus)$label <- "Marital status"
+attributes(data_filter$Education)$label <- "Education"
+attributes(data_filter$Address)$label <- "Address"
+attributes(data_filter$Employment)$label <- "Employment"
+attributes(data_filter$IncomeLossfromCOVID)$label <- "Income Loss from COVID-19"
+attributes(data_filter$PatientAmbulation)$label <- "Ambulation"
+attributes(data_filter$PatientHearing)$label <- "Hearing"
+attributes(data_filter$PatientVisual)$label <- "Visual"
+attributes(data_filter$Smoking)$label <- "Smoking"
+attributes(data_filter$AlcoholDrinking)$label <- "Alcohol Drinking"
+attributes(data_filter$DementiaDx)$label <- "Dementia diagnosis"
+attributes(data_filter$SelfPerceptCognition)$label <- "Self Percept Cognition"
+attributes(data_filter$NumberofHospitalization)$label <- "Number of Hospitalization"
+attributes(data_filter$SelfPerceptHealth)$label <- "Self Percept Health"
+
+attributes(data_filter$phq9_1)$label <- "Little interest or pleasure in doing things"
+attributes(data_filter$phq9_2)$label <- "Feeling down, depressed, or hopeless"
+attributes(data_filter$phq9_3)$label <- "Trouble falling or staying asleep, or sleeping too much"
+attributes(data_filter$phq9_4)$label <- "Feeling tired or having little energy"
+attributes(data_filter$phq9_5)$label <- "Poor appetite or overeating"
+attributes(data_filter$phq9_6)$label <- "Feeling bad about yourself — or that you are a failure or have let yourself or your family down"
+attributes(data_filter$phq9_7)$label <- "Trouble concentrating on things, such as reading the newspaper or watching television"
+attributes(data_filter$phq9_8)$label <- "Moving or speaking so slowly that other people could have noticed? Or so fidgety or restless that you have been moving a lot more than usual"
+attributes(data_filter$phq9_9)$label <- "Thoughts that you would be better off dead, or thoughts of hurting yourself in some way"
+attributes(data_filter$phq_9_score)$label <- "PHQ-9 score"
+
+attributes(data_filter$phq_9_cat)$label <- "PHQ-9 Interpretation"
+
+
+attributes(data_filter$BMI)$label <- "BMI"
+
+```
+
+```{r}
+# relocate column
+colnames(data_filter)
+
+data_filter <- data_filter[,c("Ageofpatient","Sex",  "WeightofPatient" , "HeightofPatient" , "BMI" ,"Ethnic","Maritalstatus","Address","Education",     "Employment", "income", "IncomeLossfromCOVID" ,"PatientAmbulation" , "PatientHearing","PatientVisual", "Smoking",  "AlcoholDrinking","DementiaDx",  "SelfPerceptCognition", "NumberofHospitalization" ,"SelfPerceptHealth","neuro",       "cvs",         "respi",       "gi",         "renal",       "endo",        "msk",         "cancer",    "allergy",    "psychi" ,"phq9_1",     "phq9_2",      "phq9_3",      "phq9_4",      "phq9_5",      "phq9_6",     "phq9_7",      "phq9_8",      "phq9_9",      "phq_9_score", "phq_9_cat")]
+```
+
+```{r}
+saveRDS(data_filter,"../output/data_preprocessed.rds")
+saveRDS(result_all,"../output/phq9_thai_labeled.rds")
+```
+
