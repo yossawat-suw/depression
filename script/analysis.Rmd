@@ -12,11 +12,13 @@ library(labelled)
 library(MASS)
 library(stats)
 library(ggplot2)
+library(effects)
 ```
 
 ```{r}
 #Load preprocessed data
-data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+#data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+data_filter <- readRDS(file = "../output/data_preprocessed_edited.rds") # merge the myanmar and the hearing aid
 ```
 
 ```{r}
@@ -153,6 +155,9 @@ ordered_logistic_tbl <- ordered_logistic_model %>% tbl_regression(exponentiate =
 ordered_logistic_tbl
 ```
 
+```{r}
+Anova(ordered_logistic_model)
+```
 
 
 
@@ -183,4 +188,3 @@ lm_tbl %>% as_hux_xlsx("../output/multivariated_linear.xlsx")
 ordered_logistic_tbl %>% as_hux_xlsx("../output/phd9_cat_ordered_logistic.xlsx")
 binary_logistic_tbl %>% as_hux_xlsx("../output/phq9_9th_logistic.xlsx")
 ```
-

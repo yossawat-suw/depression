@@ -302,8 +302,99 @@ colnames(data_filter)
 data_filter <- data_filter[,c("Ageofpatient","Sex",  "WeightofPatient" , "HeightofPatient" , "BMI" ,"Ethnic","Maritalstatus","Address","Education",     "Employment", "income", "IncomeLossfromCOVID" ,"PatientAmbulation" , "PatientHearing","PatientVisual", "Smoking",  "AlcoholDrinking","DementiaDx",  "SelfPerceptCognition", "NumberofHospitalization" ,"SelfPerceptHealth","neuro",       "cvs",         "respi",       "gi",         "renal",       "endo",        "msk",         "cancer",    "allergy",    "psychi" ,"phq9_1",     "phq9_2",      "phq9_3",      "phq9_4",      "phq9_5",      "phq9_6",     "phq9_7",      "phq9_8",      "phq9_9",      "phq_9_score", "phq_9_cat")]
 ```
 
+#check validity of data
+```{r}
+#check the outlier
+for (i in 1:ncol(data_filter)) {
+  x <- data_filter[,i,drop = TRUE]
+  names(x) <- names(data_filter)[i]
+  plot(x,ylab = names(x))
+}
+```
+```{r}
+#seem like the weight and height is weird
+library(ggplot2)
+data_filter %>% ggplot(aes(x=WeightofPatient,y=HeightofPatient)) +geom_point()
+
+#that one sample must have the value switch 
+index <- which(data_filter$WeightofPatient > 100)
+
+#data_filter[index,] #this is the one
+
+#now switch the value
+wt <- data_filter[index,]$HeightofPatient
+ht <- data_filter[index,]$WeightofPatient
+data_filter[index,]$WeightofPatient <- wt
+data_filter[index,]$HeightofPatient <- ht
+
+data_filter[index,]$BMI <- (data_filter[index,]$WeightofPatient) / (((data_filter[index,]$HeightofPatient)/100)^2)
+
+
+
+
+data_filter %>% ggplot(aes(x=WeightofPatient,y=HeightofPatient)) +geom_point() 
+data_filter[(data_filter$WeightofPatient < 40),] #How can someone has weight of around 33???
+```
+
 ```{r}
 saveRDS(data_filter,"../output/data_preprocessed.rds")
 saveRDS(result_all,"../output/phq9_thai_labeled.rds")
+```
+
+#After 1st discussion 
+```{r}
+# 2 things to be done 
+# 1st: merge the myanmar (others) into thai
+# 2nd: merge the hearing aid and glassess to normal 
+```
+
+```{r}
+library(ggplot2)
+library(patchwork)
+```
+
+```{r}
+data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+```
+
+```{r}
+#merge the 
+p1 <- ggplot(data_filter,aes(x = PatientHearing)) + 
+  geom_bar() + 
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal() 
+p2 <-ggplot(data_filter,aes(x = PatientVisual)) + 
+  geom_bar() + 
+  geom_text(stat = 'count', aes(label = ..count..), vjust = -0.5) +
+  theme_minimal()  # Use a minimal theme
+
+p1 + p2
+
+```
+
+
+```{r}
+#seem like if we merge the glasses, only one group left. so we fix with 2 classification for visual
+unique(data_filter$PatientHearing)
+data_filter$PatientHearing <- gsub(pattern = "Hearing aid",replacement = "Normal",x = data_filter$PatientHearing)
+
+data_filter$PatientHearing <- factor(data_filter$PatientHearing,levels = c("Normal","Hearing impairment"))
+
+levels(data_filter$PatientHearing)
+```
+```{r}
+#for the ethnic
+
+table(data_filter$Ethnic)
+data_filter$Ethnic <- gsub(pattern = "others",replacement = "Thai",x = data_filter$Ethnic)
+
+table(data_filter$Ethnic)
+
+data_filter$Ethnic <- factor(data_filter$Ethnic,levels = c("Thai","Chinese"))
+levels(data_filter$Ethnic)
+```
+
+```{r}
+saveRDS(data_filter,"../output/data_preprocessed_edited.rds")
 ```
 
