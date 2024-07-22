@@ -12,8 +12,14 @@ library(labelled)
 library(MASS)
 library(stats)
 library(ggplot2)
-library(effects)
+#library(effects)
+library(car)
+library(tibble)
 ```
+```{r}
+source("./function.R")
+```
+
 
 ```{r}
 #Load preprocessed data
@@ -116,6 +122,163 @@ data_long <- gather(data_filter, phq, score, phq9_1:phq9_9, factor_key=TRUE)
 data_long %>% ggplot(aes(x=score)) + geom_histogram() + facet_wrap(~phq)
 ```
 
+#Check before analyisis
+```{r}
+#Check for Multicollinearity
+```
+
+
+```{r}
+column_to_excludes <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_cat","phq_9_score")
+
+mix_assoc_result <- mixed_assoc(data_filter[,!colnames(data_filter) %in% column_to_excludes])
+
+```
+
+```{r}
+mix_assoc_result %>%
+  dplyr::select(-complete_obs_pairs, -complete_obs_ratio) %>%
+  filter(x != y) %>%
+  filter(assoc != 0) %>%
+  arrange(desc(abs(assoc))) %>%
+  filter(row_number() %% 2 == 1) %>%
+  group_by(type) %>%
+  slice_max(order_by = abs(assoc), n = 10) %>%
+  ungroup()
+```
+
+```{r}
+library(corrplot)
+mix_assoc_result %>%
+    dplyr::select(x,y,assoc) %>%
+    spread(y, assoc) %>%
+    column_to_rownames("x") %>%
+    as.matrix %>%
+    corrplot(tl.cex = 0.6)
+```
+
+<!-- ```{r} -->
+<!-- require(corrr) -->
+<!-- mix_assoc_result %>% -->
+<!--     dplyr::select(x,y,assoc) %>% -->
+<!--     spread(y, assoc) %>% -->
+<!--     column_to_rownames("x") %>% -->
+<!--     as.matrix %>% -->
+<!--     as_cordf %>% -->
+<!--     network_plot(min_cor = 0.05,legend = "full") + geom_text(size = 0.1) -->
+<!-- ``` -->
+
+
+```{r}
+#explore vif & gvif
+
+column_to_excludes <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_cat")
+
+
+lm_model <- lm(phq_9_score ~ ., data = data_filter[,!colnames(data_filter) %in% column_to_excludes])
+
+vif(lm_model)
+```
+
+```{r}
+## Try the automatic selection by collinear 
+library(collinear)
+column_to_excludes_initial <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_cat","phq_9_score")
+
+response_choices <- c("phq_9_cat","phq_9_score")
+selected_response <- response_choices[2]
+
+column_to_excludes <- setdiff(column_to_excludes_initial,selected_response)
+
+predictors <- setdiff(setdiff(colnames(data_filter),column_to_excludes),selected_response)
+```
+
+
+```{r}
+#for linear
+selected_predictors_no_preference <- collinear(
+  df = data_filter[,!colnames(data_filter) %in% column_to_excludes],
+  response = selected_response,
+  predictors = predictors,
+  preference_order = NULL,
+  max_cor = 0.5,
+  max_vif = 2.5,
+  encoding_method = "mean"
+)
+
+
+preference_rsquared <- preference_order(
+  df = data_filter[,!colnames(data_filter) %in% column_to_excludes],
+  response = selected_response,
+  predictors = predictors,
+  f = f_rsquared,
+  workers = 4 #requires package future and future.apply for more workers
+)
+
+selected_predictors_with_preference <- collinear(
+  df = data_filter[,!colnames(data_filter) %in% column_to_excludes],
+  response = selected_response,
+  predictors = predictors,
+  preference_order = preference_rsquared,
+  max_cor = 0.5,
+  max_vif = 2.5,
+  encoding_method = "mean"
+)
+```
+
+
+```{r}
+selected_predictors_no_preference
+selected_predictors_with_preference
+```
+```{r}
+#for logistic
+
+selected_predictors_no_response <- cor_select(
+  df = data_filter[,!colnames(data_filter) %in% column_to_excludes],
+  predictors = predictors,
+  preference_order = preference_rsquared,
+  max_cor = 0.5
+)
+
+selected_predictors_no_response
+```
+
+
+
+```{r}
+# Exclude specified columns
+column_to_excludes <- c("WeightofPatient", "HeightofPatient",
+                        "phq9_1", "phq9_2", "phq9_3", "phq9_4", "phq9_5", "phq9_6", "phq9_7", "phq9_8", "phq9_9", "phq_9_cat", "phq_9_score")
+full_var <- setdiff(colnames(data_filter), column_to_excludes)
+
+# Create the initial data frame
+df_collinear_remove <- data.frame(original = full_var,
+                        collinear_linear_with_preference = full_var,
+                        collinear_linear_no_preference = full_var,
+                        collinear_no_response = full_var)
+
+# Helper function to replace variables with NA
+replace_with_na <- function(df, col_name, exclude_vars) {
+  vars_to_replace <- setdiff(full_var, exclude_vars)
+  df[[col_name]] <- sapply(df[[col_name]], function(x) if (x %in% vars_to_replace) NA_character_ else x)
+  return(df)
+}
+
+# Apply the helper function for each scenario
+df_collinear_remove <- replace_with_na(df_collinear_remove, "collinear_linear_with_preference", selected_predictors_with_preference)
+df_collinear_remove <- replace_with_na(df_collinear_remove, "collinear_linear_no_preference", selected_predictors_no_preference)
+df_collinear_remove <- replace_with_na(df_collinear_remove, "collinear_no_response", selected_predictors_no_response)
+
+```
+```{r}
+df_collinear_remove %>%
+  filter(if_any(everything(), is.na))
+```
+
 ##Multiple linear regression
 
 ```{r warning = FALSE, message = FALSE}
@@ -137,12 +300,11 @@ lm_tbl
 
 
 # Ordered logistic regression
-```{r warning = FALSE, message = FALSE}
+```{r}
 # Ordered logistic regression
 column_to_excludes <- c("WeightofPatient","HeightofPatient",
                         "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_score")
 
-data_filter[,!colnames(data_filter) %in% column_to_excludes]
 
 
 ordered_logistic_model <- polr(phq_9_cat ~ ., data = data_filter[,!colnames(data_filter) %in% column_to_excludes],Hess = TRUE)
@@ -155,7 +317,8 @@ ordered_logistic_tbl <- ordered_logistic_model %>% tbl_regression(exponentiate =
 ordered_logistic_tbl
 ```
 
-```{r}
+
+```{r warning = FALSE, message = FALSE}
 Anova(ordered_logistic_model)
 ```
 
@@ -188,3 +351,32 @@ lm_tbl %>% as_hux_xlsx("../output/multivariated_linear.xlsx")
 ordered_logistic_tbl %>% as_hux_xlsx("../output/phd9_cat_ordered_logistic.xlsx")
 binary_logistic_tbl %>% as_hux_xlsx("../output/phq9_9th_logistic.xlsx")
 ```
+
+
+<!-- #Additional analyisis -->
+<!-- ```{r} -->
+<!-- library(glmnet) -->
+<!-- library(caret) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- # Multiple linear regression -->
+<!-- column_to_excludes <- c("WeightofPatient","HeightofPatient", -->
+<!--                         "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_cat") -->
+
+
+<!-- # Fit a Ridge regression model -->
+<!-- ridge_model <- glmnet(x = data_filter[,!colnames(data_filter) %in% column_to_excludes], y = data_filter$phq_9_score, alpha = 0)  # alpha = 0 for Ridge regression -->
+<!-- print(ridge_model) -->
+
+<!-- # Fit a LASSO model -->
+<!-- lasso_model <- cv.glmnet(x = data_filter[,!colnames(data_filter) %in% column_to_excludes], y = data_filter$phq_9_score,  alpha = 1)  # alpha = 1 for LASSO -->
+<!-- print(lasso_model) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- lasso_model <- glmnet(x = data_filter[,!colnames(data_filter) %in% column_to_excludes], y = data_filter$phq_9_score,  alpha = 1) -->
+<!-- lasso_model <- cv.glmnet(X_matrix, y_numeric, family = "multinomial", alpha = 1) -->
+<!-- ``` -->
+

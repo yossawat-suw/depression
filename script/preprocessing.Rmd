@@ -48,11 +48,17 @@ nrow(data)
 data_filter <- data[data[,99,drop =TRUE] == "ไม่ใช่ (ผู้ป่วยตอบคำถามเอง)",selected_var]
 data_filter
 ```
+
+
+
 ```{r}
 lapply(as.vector(data_filter[,31:39]),unique)
 ```
 
-
+```{r}
+#check na value
+data_filter[rowSums(is.na(data_filter)) > 0, ]
+```
 
 ```{r}
 #filter out NA 
@@ -62,6 +68,11 @@ nrow(data_filter)
 
 #remove weight / height with zero number
 data_filter <- data_filter[!(data_filter$WeightofPatient == 0 | data_filter$HeightofPatient == 0),]
+```
+
+```{r}
+#check na value
+data_filter[rowSums(is.na(data_filter)) > 0, ]
 ```
 
 ```{r}
@@ -96,8 +107,6 @@ for(i in 31:39) {
 data_filter <- data_filter %>% 
   mutate(phq_9_score = as.integer(rowSums(across(31:39))))
 ```
-
-
 
 
 ```{r}
@@ -199,6 +208,8 @@ c("phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_
 
 ```
 
+
+
 ```{r}
 data_filter$Sex <- to_factor(data_filter$Sex)
 data_filter$Ethnic <- to_factor(data_filter$Ethnic)
@@ -208,7 +219,8 @@ data_filter$Address <- to_factor(data_filter$Address)
 data_filter$Employment <- to_factor(data_filter$Employment)
 
 data_filter$IncomeLossfromCOVID <- to_factor(data_filter$IncomeLossfromCOVID)
-data_filter$IncomeLossfromCOVID <- factor(data_filter$IncomeLossfromCOVID,levels = c("Same","Less than 50%","Over 50% loss","No income"))
+
+data_filter$IncomeLossfromCOVID <- factor(data_filter$IncomeLossfromCOVID,levels = c("Same","Less than 50% loss","Over 50% loss","No income"))
 
 data_filter$PatientAmbulation <- to_factor(data_filter$PatientAmbulation)
 data_filter$PatientHearing <- to_factor(data_filter$PatientHearing) 
@@ -233,7 +245,10 @@ data_filter$income <- factor(data_filter$income,levels = c("10,000 or less",
 ```
 
 
-
+```{r}
+#check na value in case factoring create some na value
+data_filter[rowSums(is.na(data_filter)) > 0, ]
+```
 
 
 ```{r}
