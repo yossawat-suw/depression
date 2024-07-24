@@ -22,3 +22,5 @@ install.packages("corrr") #for the asso node plot
 install.packages("corrplot") #for the asso matrix plot
 install.packages("caret")
 install.packages("collinear")
+install.packages("broom")
+install.packages("doParallel")

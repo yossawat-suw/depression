@@ -1,0 +1,136 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r warning = FALSE, message = FALSE}
+#load package
+library(dplyr)
+library(tidyr)
+library(gtsummary)
+library(labelled)
+library(MASS)
+library(stats)
+library(ggplot2)
+#library(effects)
+library(car)
+library(tibble)
+```
+
+
+
+```{r}
+#Load preprocessed data
+data_filter_full <- readRDS(file = "../output/data_preprocessed_mergeethnic.rds") # merge the myanmar
+```
+
+
+```{r warning = FALSE, message = FALSE}
+# Ordered logistic regression
+column_to_excludes <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_score")
+
+result_model <- list()
+index <- numeric()
+for (i in 1:nrow(data_filter_full)) {
+    data_filter <- data_filter_full[-i, ]
+
+    
+    ordered_logistic_model <- polr(phq_9_cat ~ ., data = data_filter[,!colnames(data_filter) %in% column_to_excludes],Hess = TRUE)
+    
+
+    broom <- broom.helpers::tidy_parameters(ordered_logistic_model)
+    
+    broom.sig <- sum(broom$term == "NumberofHospitalization" & broom$p.value < 0.05)
+    
+    if (broom.sig == 1) {
+      result_model[[paste0("omit_row_", i)]] <- broom
+      index[paste0("omit_row_", i)] <- i
+    }
+    
+
+}
+```
+
+
+```{r}
+result_model_sig_only <- lapply(result_model, function(x) {
+  x <- x[x$p.value < 0.05,c("term","p.value","estimate","conf.low","conf.high")]
+})
+```
+
+```{r}
+rio::export(result_model,file = "../output/tweak_one_row_remove_ordered_logistic.xlsx")
+rio::export(result_model_sig_only,file = "../output/tweak_one_row_remove_ordered_logistic_sig_only.xlsx")
+```
+
+
+```{r}
+# Multiple linear regression
+column_to_excludes <- c("WeightofPatient","HeightofPatient",
+                        "phq9_1","phq9_2","phq9_3","phq9_4","phq9_5","phq9_6","phq9_7","phq9_8","phq9_9","phq_9_cat")
+
+result_model_2 <- list()
+index_2 <- numeric()
+for (i in index) {
+    data_filter <- data_filter_full[-i, ]
+
+    
+    lm_model <- lm(phq_9_score ~ ., data = data_filter[,!colnames(data_filter) %in% column_to_excludes])
+
+  # Print the summary of the model
+  lm_model.sum <- summary(lm_model)
+
+  hos_sig <- sum(rownames(lm_model.sum$coefficients) == "NumberofHospitalization" & lm_model.sum$coefficients[,4] < 0.05)
+    
+    
+    if (hos_sig == 1) {
+      result_model_2[[paste0("omit_row_", i)]] <- lm_model.sum
+      index_2[paste0("omit_row_", i)] <- i
+    }
+    
+
+}
+```
+
+
+```{r}
+setdiff(index,index_2)
+```
+
+
+
+
+
+<!-- ```{r} -->
+<!-- all_set <- vector() -->
+<!-- for (i in 1:length(result_model)) { -->
+<!--   all_set <- union(all_set,result_model[[i]]$term) -->
+<!-- } -->
+
+<!-- for (i in 1:length(result_model)) { -->
+<!--   print(setdiff(all_set,result_model[[i]]$term)) -->
+<!-- } -->
+
+<!-- #seem like for all model the missing coef is the same. lets check! -->
+
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- all_set -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+
+
+<!-- #Missing coeff -->
+<!-- #above college degree -->
+<!-- #Bed bound -->
+<!-- #Vission loss -->
+
+<!-- table(data_filter$Education) -->
+<!-- table(data_filter$PatientAmbulation) -->
+<!-- table(data_filter$PatientVisual) -->
+
+<!-- #so the drop coeff is due to the fact that there is no single data on that. -->
+<!-- ``` -->

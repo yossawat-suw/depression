@@ -315,7 +315,7 @@ ordered_logistic_model <- polr(phq_9_cat ~ ., data = data_filter[,!colnames(data
 # Print the summary of the model
 summary(ordered_logistic_model)
 ```
-```{r warning = FALSE, message = FALSE}
+```{r }
 ordered_logistic_tbl <- ordered_logistic_model %>% tbl_regression(exponentiate = TRUE)
 ordered_logistic_tbl
 ```
