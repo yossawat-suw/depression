@@ -23,8 +23,11 @@ source("./function.R")
 
 ```{r}
 #Load preprocessed data
-#data_filter <- readRDS(file = "../output/data_preprocessed.rds")
-data_filter <- readRDS(file = "../output/data_preprocessed_edited.rds") # merge the myanmar and the hearing aid
+data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+#data_filter <- readRDS(file = "../output/data_preprocessed_edited.rds") # merge the myanmar and the hearing aid
+#data_filter <- readRDS(file = "../output/data_preprocessed_mergeethnic.rds") # merge the myanmar 
+#data_filter <- readRDS(file = "../output/data_preprocessed_mergehearing.rds") # merge the hearing aid
+
 ```
 
 ```{r}

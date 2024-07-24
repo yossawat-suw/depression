@@ -413,3 +413,45 @@ levels(data_filter$Ethnic)
 saveRDS(data_filter,"../output/data_preprocessed_edited.rds")
 ```
 
+#trials only merge ethic
+```{r}
+data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+```
+
+
+```{r}
+#for the ethnic
+
+table(data_filter$Ethnic)
+data_filter$Ethnic <- gsub(pattern = "others",replacement = "Thai",x = data_filter$Ethnic)
+
+table(data_filter$Ethnic)
+
+data_filter$Ethnic <- factor(data_filter$Ethnic,levels = c("Thai","Chinese"))
+levels(data_filter$Ethnic)
+```
+
+```{r}
+saveRDS(data_filter,"../output/data_preprocessed_mergeethnic.rds")
+```
+
+#trials only merge hearing
+```{r}
+data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+```
+
+```{r}
+#seem like if we merge the glasses, only one group left. so we fix with 2 classification for visual
+unique(data_filter$PatientHearing)
+data_filter$PatientHearing <- gsub(pattern = "Hearing aid",replacement = "Normal",x = data_filter$PatientHearing)
+
+data_filter$PatientHearing <- factor(data_filter$PatientHearing,levels = c("Normal","Hearing impairment"))
+
+levels(data_filter$PatientHearing)
+```
+
+
+```{r}
+saveRDS(data_filter,"../output/data_preprocessed_mergehearing.rds")
+```
+
