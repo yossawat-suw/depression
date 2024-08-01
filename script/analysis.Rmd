@@ -109,18 +109,18 @@ data_filter %>% group_by(phq9_9) %>%
 ```
 ```{r}
 data_filter %>% ggplot(aes(x = factor(phq9_9), y = phq_9_score)) + geom_count() +
-  labs(y = "The number of patient", x = "PHQ-9 score: 9th item") +
+  labs(y = "Number of patient (n)", x = "PHQ-9 score: 9th item") +
   theme_pubr()
 ```
 ```{r}
 data_filter %>% ggplot(aes(x = factor(phq9_9), y = phq_9_score)) + geom_violin() +
-  labs(y = "The number of patient", x = "PHQ-9 score: 9th item") +
+  labs(y = "Number of patient (n)", x = "PHQ-9 score: 9th item") +
   theme_pubr()
 ```
 
 ```{r}
 data_filter %>% ggplot(aes(x = factor(phq9_9), y = phq_9_score)) + geom_boxplot() +
-  labs(y = "The number of patient", x = "PHQ-9 score: 9th item") +
+  labs(y = "Number of patient (n)", x = "PHQ-9 score: 9th item") +
   theme_pubr()
 ```
 
