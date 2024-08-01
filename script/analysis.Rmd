@@ -23,10 +23,13 @@ source("./function.R")
 
 ```{r}
 #Load preprocessed data
-data_filter <- readRDS(file = "../output/data_preprocessed.rds")
+#data_filter <- readRDS(file = "../output/data_preprocessed.rds")
 #data_filter <- readRDS(file = "../output/data_preprocessed_edited.rds") # merge the myanmar and the hearing aid
 #data_filter <- readRDS(file = "../output/data_preprocessed_mergeethnic.rds") # merge the myanmar 
 #data_filter <- readRDS(file = "../output/data_preprocessed_mergehearing.rds") # merge the hearing aid
+
+data_filter <- readRDS("../output/data_preprocessed_mergehearing_mergeethnic_remove66.rds")
+
 
 ```
 
@@ -87,7 +90,13 @@ data_filter %>% group_by(phq_9_cat) %>%
 ```
 
 ```{r}
-data_filter %>% ggplot(aes(x = phq_9_score)) + geom_histogram()
+data_filter %>%
+  ggplot(aes(x = phq_9_score)) +
+  geom_histogram(binwidth = 1) +
+  stat_bin(binwidth = 1, geom = "text", aes(label = ..count..), vjust = -0.5) +
+  labs(y = "The number of patient", x = "PHQ-9 score") +
+  theme_pubr()
+
 
 data_filter %>% group_by(phq_9_score) %>%
   summarise(frequency = n())
@@ -99,8 +108,22 @@ data_filter %>% group_by(phq9_9) %>%
   summarise(frequency = n())
 ```
 ```{r}
-data_filter %>% ggplot(aes(x = phq9_9, y = phq_9_score)) + geom_count()
+data_filter %>% ggplot(aes(x = factor(phq9_9), y = phq_9_score)) + geom_count() +
+  labs(y = "The number of patient", x = "PHQ-9 score: 9th item") +
+  theme_pubr()
 ```
+```{r}
+data_filter %>% ggplot(aes(x = factor(phq9_9), y = phq_9_score)) + geom_violin() +
+  labs(y = "The number of patient", x = "PHQ-9 score: 9th item") +
+  theme_pubr()
+```
+
+```{r}
+data_filter %>% ggplot(aes(x = factor(phq9_9), y = phq_9_score)) + geom_boxplot() +
+  labs(y = "The number of patient", x = "PHQ-9 score: 9th item") +
+  theme_pubr()
+```
+
 ```{r}
 #test whether phq9_9 is related to ph9_9_score using t-test
 

@@ -455,3 +455,30 @@ levels(data_filter$PatientHearing)
 saveRDS(data_filter,"../output/data_preprocessed_mergehearing.rds")
 ```
 
+```{r}
+library(dplyr)
+```
+
+# merge hearing, ethnic, remove 66
+```{r}
+data_filter <- readRDS("../output/data_preprocessed_edited.rds")
+```
+
+
+```{r}
+#manipulate some data
+#Claim that dont know in come but say income loss >50% that doesnt make sense so remove him
+data_filter <- data_filter[-66, ]
+#Rename
+data_filter <- data_filter %>%
+  rename(SelfPerceptDepression = psychi)
+
+data_filter <- data_filter %>%
+  mutate(SelfPerceptDepression = ifelse(SelfPerceptDepression == "Psych disease", "Depression",
+                                        ifelse(SelfPerceptDepression == "None", "No", SelfPerceptDepression)))
+```
+
+```{r}
+saveRDS(data_filter,"../output/data_preprocessed_mergehearing_mergeethnic_remove66.rds")
+```
+
